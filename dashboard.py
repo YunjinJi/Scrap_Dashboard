@@ -13,9 +13,9 @@ st.set_page_config(page_title="GCS PDF 요약", layout="wide")
 st.title("📂 GCS PDF 업로드 & 요약")
 
 # ─── 시크릿 로드 ───────────────────────────────────────────────
-openai.api_key    = st.secrets["OPENAI_API_KEY"]
-b64               = st.secrets["GCS_SA_KEY_B64"]
-bucket_name       = st.secrets["GCS_BUCKET_NAME"]
+openai.api_key  = st.secrets["OPENAI_API_KEY"]
+b64             = st.secrets["GCS_SA_KEY_B64"]
+bucket_name     = st.secrets["GCS_BUCKET_NAME"]
 
 # ─── GCS 클라이언트 인증 ───────────────────────────────────────
 sa_info = json.loads(base64.b64decode(b64))
@@ -72,14 +72,14 @@ def summarize_with_retry(prompt: str) -> str:
 def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> str:
     summary_filename = pdf_name.replace(".pdf", "_summary.txt")
 
-    # 이미 생성된 요약이 있으면 다운로드
+    # 이미 생성된 요약 있으면 다운로드
     if summary_filename in existing:
         return existing[summary_filename].download_as_text()
 
     # PDF 다운로드 & 텍스트 추출
     pdf_bytes = download_pdf_bytes(f"pdfs/{pdf_name}")
     reader    = PdfReader(io.BytesIO(pdf_bytes))
-    text      = "\n".join(page.extract_text() or "" for page in reader.pages)
+    text      = "\n".join(p.extract_text() or "" for p in reader.pages)
     prompt    = f"다음 PDF를 5문장 이내로 요약해 주세요:\n\n{text[:2000]}"
 
     try:

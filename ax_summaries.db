@@ -1,0 +1,17 @@
+import sqlite3
+
+conn = sqlite3.connect("ax_summaries.db")
+c = conn.cursor()
+
+c.execute("""CREATE TABLE IF NOT EXISTS summaries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    date TEXT,
+    content TEXT
+)""")
+
+# 샘플 데이터 삽입
+c.execute("INSERT INTO summaries (date, content) VALUES (?, ?)", 
+          ("2025-07-11", "정부는 RE100 산업단지를 통해 AI 데이터센터를 유치하는 정책을 추진 중임."))
+
+conn.commit()
+conn.close()

@@ -1,121 +1,112 @@
+import io, json, time
 import os
-import io
-import sqlite3
-import pandas as pd
+from glob import glob
+
 import streamlit as st
-from PyPDF2 import PdfReader
 import openai
+from PyPDF2 import PdfReader
+from google.oauth2.service_account import Credentials
+from googleapiclient.discovery import build
+from googleapiclient.http import MediaIoBaseUpload, MediaIoBaseDownload
 
-# ————— 설정 —————
-st.set_page_config(page_title="PDF 요약 대시보드", layout="wide")
-openai.api_key = st.secrets["OPENAI_API_KEY"]
+# 페이지 설정
+st.set_page_config(page_title="Google Drive PDF 요약 대시보드", layout="wide")
+st.title("📂 Google Drive 폴더 기반 PDF 요약")
 
-# ————— DB 초기화 —————
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
-DB_PATH = os.path.join(BASE_DIR, "ax_summaries.db")
+# OpenAI API 키 설정
+openai.api_key = st.secrets["OPENAI_API_KEY"]  # .streamlit/secrets.toml 또는 환경변수로 설정
 
-def init_db(path):
-    conn = sqlite3.connect(path)
-    c = conn.cursor()
-    # 1) 업로드된 PDF 저장용 테이블
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS pdfs (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            filename TEXT,
-            content BLOB,
-            upload_at TEXT
-        )
-    """)
-    # 2) 요약 결과 저장용 테이블
-    c.execute("""
-        CREATE TABLE IF NOT EXISTS summaries (
-            id INTEGER PRIMARY KEY AUTOINCREMENT,
-            pdf_id INTEGER,
-            summary TEXT,
-            summarized_at TEXT,
-            FOREIGN KEY(pdf_id) REFERENCES pdfs(id)
-        )
-    """)
-    conn.commit()
-    conn.close()
+# Google Drive 서비스 계정 정보 & 클라이언트 설정
+sa_info = json.loads(st.secrets["GDRIVE_SA_KEY"])
+folder_id = st.secrets["GDRIVE_FOLDER_ID"]
+creds = Credentials.from_service_account_info(sa_info, scopes=["https://www.googleapis.com/auth/drive"])
+drive = build("drive", "v3", credentials=creds)
 
-init_db(DB_PATH)
+# 헬퍼 함수: 폴더 내 PDF 목록 가져오기
+def list_pdfs_in_folder():
+    resp = drive.files().list(
+        q=f"'{folder_id}' in parents and mimeType='application/pdf'",
+        fields="files(id,name)"
+    ).execute()
+    return resp.get("files", [])
 
-# ————— 유틸 함수 —————
-def save_pdf_to_db(path, filename, data: bytes):
-    conn = sqlite3.connect(path)
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO pdfs (filename, content, upload_at) VALUES (?, ?, datetime('now'))",
-        (filename, sqlite3.Binary(data))
+# 헬퍼 함수: 폴더 내 요약 텍스트 목록 가져오기
+def list_summaries_in_folder():
+    resp = drive.files().list(
+        q=f"'{folder_id}' in parents and name contains '_summary.txt'",
+        fields="files(id,name)"
+    ).execute()
+    return {f['name']: f['id'] for f in resp.get('files', [])}
+
+# 헬퍼 함수: 파일 다운로드
+def download_file_bytes(file_id):
+    request = drive.files().get_media(fileId=file_id)
+    fh = io.BytesIO()
+    downloader = MediaIoBaseDownload(fh, request)
+    done = False
+    while not done:
+        _, done = downloader.next_chunk()
+    fh.seek(0)
+    return fh.read()
+
+# 헬퍼 함수: 요약 텍스트 업로드
+def upload_summary_file(filename, summary_text):
+    summary_name = filename + "_summary.txt"
+    media = MediaIoBaseUpload(
+        io.BytesIO(summary_text.encode("utf-8")),
+        mimetype="text/plain"
     )
-    conn.commit()
-    last_id = c.lastrowid
-    conn.close()
-    return last_id
+    metadata = {"name": summary_name, "parents": [folder_id]}
+    drive.files().create(body=metadata, media_body=media).execute()
 
-def extract_text_from_pdf(data: bytes) -> str:
-    reader = PdfReader(io.BytesIO(data))
-    texts = []
-    for page in reader.pages:
-        txt = page.extract_text()
-        if txt:
-            texts.append(txt)
-    return "\n".join(texts)
+# 요약 생성/읽기 함수 (캐시 처리)
+@st.cache_data(show_spinner=False)
+def get_or_create_summary(pdf_meta, existing_summaries):
+    name = pdf_meta['name']
+    file_id = pdf_meta['id']
+    summary_name = name + '_summary.txt'
 
-def summarize_with_openai(text: str) -> str:
-    # 길면 앞뒤 일부만 잘라내기(비용 절감용)
-    snippet = text[:1500] + "\n\n...(중략)...\n\n" + text[-1500:]
-    resp = openai.ChatCompletion.create(
+    # 이미 요약이 있으면 다운로드
+    if summary_name in existing_summaries:
+        data = download_file_bytes(existing_summaries[summary_name])
+        return data.decode('utf-8')
+
+    # 없으면 PDF 다운로드 후 텍스트 추출
+    pdf_bytes = download_file_bytes(file_id)
+    text = "\n".join(
+        page.extract_text() or "" for page in PdfReader(io.BytesIO(pdf_bytes)).pages
+    )
+    # OpenAI 요약 요청
+    resp = openai.chat.completions.create(
         model="gpt-4o-mini",
-        messages=[{"role": "user", "content": f"다음 PDF 내용을 5문장 이내로 요약해주세요:\n\n{snippet}"}],
+        messages=[{"role":"user","content":f"다음 PDF를 5문장 이내로 요약해줘:\n\n{text[:2000]}"}],
         temperature=0.3
     )
-    return resp.choices[0].message.content.strip()
+    summary = resp.choices[0].message.content.strip()
+    # 요약 업로드
+    upload_summary_file(name, summary)
+    return summary
 
-def save_summary_to_db(path, pdf_id, summary: str):
-    conn = sqlite3.connect(path)
-    c = conn.cursor()
-    c.execute(
-        "INSERT INTO summaries (pdf_id, summary, summarized_at) VALUES (?, ?, datetime('now'))",
-        (pdf_id, summary)
-    )
-    conn.commit()
-    conn.close()
-
-# ————— 사이드바 : PDF 업로드 폼 —————
-st.sidebar.header("📤 PDF 업로드 & 요약")
-uploaded = st.sidebar.file_uploader(
-    "PDF 파일을 선택하세요", type=["pdf"], accept_multiple_files=False
-)
-
+# 사이드바: PDF 업로드
+st.sidebar.header("📤 PDF 업로드")
+uploaded = st.sidebar.file_uploader("새 PDF 업로드", type=["pdf"])
 if uploaded:
-    with st.spinner("PDF 저장 중…"):
-        data = uploaded.read()
-        pdf_id = save_pdf_to_db(DB_PATH, uploaded.name, data)
-    with st.spinner("텍스트 추출 및 요약 중…"):
-        raw_text = extract_text_from_pdf(data)
-        summary = summarize_with_openai(raw_text)
-        save_summary_to_db(DB_PATH, pdf_id, summary)
-    st.sidebar.success("✅ 업로드 및 요약 완료!")
+    data = uploaded.read()
+    meta = {"name": uploaded.name, "parents": [folder_id]}
+    media = MediaIoBaseUpload(io.BytesIO(data), mimetype="application/pdf")
+    drive.files().create(body=meta, media_body=media, fields="id").execute()
+    st.sidebar.success("✅ Drive 업로드 완료! 페이지를 새로고침하세요.")
 
-# ————— 메인 화면 : 요약 리스트 —————
-st.title("📑 업로드된 PDF & 요약 결과")
-conn = sqlite3.connect(DB_PATH)
-pdfs_df = pd.read_sql("SELECT * FROM pdfs ORDER BY id DESC", conn)
-summ_df = pd.read_sql("SELECT * FROM summaries ORDER BY id DESC", conn)
-conn.close()
+# 메인: PDF 및 요약 표시
+st.header("📑 저장된 PDF 목록 및 요약")
+pdfs = list_pdfs_in_folder()
+summaries = list_summaries_in_folder()
 
-if pdfs_df.empty:
-    st.info("업로드된 PDF가 아직 없습니다.")
+if not pdfs:
+    st.info("폴더에 PDF가 없습니다. 사이드바에서 업로드해 주세요.")
 else:
-    for _, pdf in pdfs_df.iterrows():
-        st.markdown(f"### 📄 {pdf['filename']}  (업로드: {pdf['upload_at']})")
-        # 해당 PDF의 요약 불러오기
-        sum_rows = summ_df[summ_df['pdf_id'] == pdf['id']]
-        if sum_rows.empty:
-            st.write("> 아직 요약이 생성되지 않았습니다.")
-        else:
-            for _, s in sum_rows.iterrows():
-                st.markdown(f"- **요약 ({s['summarized_at']}):**  \n  {s['summary']}")
+    for pdf in pdfs:
+        st.subheader(pdf['name'])
+        summary_text = get_or_create_summary(pdf, summaries)
+        st.markdown(f"**요약:** {summary_text}")
         st.markdown("---")

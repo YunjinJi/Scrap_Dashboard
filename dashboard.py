@@ -1,4 +1,4 @@
-import io, json, time
+import io, json, base64, time
 import streamlit as st
 import openai
 from PyPDF2 import PdfReader
@@ -13,9 +13,15 @@ st.title("📂 Google Drive PDF 업로드 & 요약")
 # 1) OpenAI 키
 openai.api_key = st.secrets["OPENAI_API_KEY"]
 
-# 2) Drive API 클라이언트
-sa_info   = json.loads(st.secrets["GDRIVE_SA_KEY"])
-folder_id = st.secrets["GDRIVE_FOLDER_ID"]
+# 2) Base64 → JSON 디코딩, 최소 권한 스코프 사용
+b64          = st.secrets["GDRIVE_SA_KEY_B64"]
+sa_info      = json.loads(base64.b64decode(b64))
+creds        = Credentials.from_service_account_info(
+                   sa_info,
+                   scopes=["https://www.googleapis.com/auth/drive.file"]
+               )
+drive        = build("drive", "v3", credentials=creds)
+folder_id    = st.secrets["GDRIVE_FOLDER_ID"]
 creds     = Credentials.from_service_account_info(
     sa_info, scopes=["https://www.googleapis.com/auth/drive.file"])
 drive     = build("drive", "v3", credentials=creds)

@@ -1,5 +1,4 @@
 streamlit
-google-api-python-client
-google-auth
-PyPDF2
 openai
+PyPDF2
+google-cloud-storage

@@ -4,10 +4,10 @@ import base64
 
 import streamlit as st
 import openai
+from openai.exceptions import RateLimitError
 from PyPDF2 import PdfReader
 from google.cloud import storage
 from tenacity import retry, stop_after_attempt, wait_exponential
-from openai.error import RateLimitError
 
 # ─── 페이지 설정 ────────────────────────────────────────────────
 st.set_page_config(page_title="GCS PDF 요약", layout="wide")
@@ -61,7 +61,7 @@ def summarize_with_retry(prompt: str) -> str:
 @st.cache_data(show_spinner=False, hash_funcs={dict: lambda _: None})
 def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> str:
     summary_file = pdf_name.replace(".pdf","_summary.txt")
-    # 기존 요약이 “⚠️”로 시작하면 새로 생성
+    # 기존 오류 요약이면 재생성
     if summary_file in existing:
         text = existing[summary_file].download_as_text()
         if not text.startswith("⚠️"):
@@ -81,7 +81,7 @@ def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> s
     try:
         summary = summarize_with_retry(prompt)
     except RateLimitError:
-        st.error("⚠️ OpenAI 속도 제한에 걸렸습니다. 잠시 후 다시 시도해 주세요.")
+        st.error("⚠️ OpenAI 속도 제한이 걸렸습니다. 잠시 후 새로고침하세요.")
         return "요약을 생성하지 못했습니다."
     except Exception as e:
         st.error(f"❌ 요약 중 예외 발생: {e}")
@@ -96,7 +96,7 @@ uploaded = st.sidebar.file_uploader("새 PDF 업로드", type="pdf")
 if uploaded:
     data = uploaded.read()
     upload_pdf(uploaded.name, data)
-    st.sidebar.success("✅ 업로드 완료! 페이지를 새로고침하세요.")
+    st.sidebar.success("✅ 업로드 완료! 페이지 새로고침하세요.")
 
 # ─── 메인 화면 ──────────────────────────────────────────────────
 st.header("📑 저장된 PDF 및 요약")

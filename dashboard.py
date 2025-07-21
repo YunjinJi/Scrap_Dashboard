@@ -4,7 +4,6 @@ import base64
 
 import streamlit as st
 import openai
-from openai.error import RateLimitError
 from PyPDF2 import PdfReader
 from google.cloud import storage
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -53,7 +52,7 @@ def summarize_with_retry(prompt: str) -> str:
     resp = openai.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
+        temperature=0.3
     )
     return resp.choices[0].message.content.strip()
 
@@ -61,7 +60,6 @@ def summarize_with_retry(prompt: str) -> str:
 @st.cache_data(show_spinner=False, hash_funcs={dict: lambda _: None})
 def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> str:
     summary_file = pdf_name.replace(".pdf", "_summary.txt")
-
     # 기존에 생성된 요약이 오류 메시지가 아니면 그대로 반환
     if summary_file in existing:
         text = existing[summary_file].download_as_text()
@@ -81,11 +79,8 @@ def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> s
     prompt = f"다음 PDF를 5문장 이내로 요약해 주세요:\n\n{content}"
     try:
         summary = summarize_with_retry(prompt)
-    except RateLimitError:
-        st.error("⚠️ OpenAI 속도 제한에 걸렸습니다. 잠시 후 새로고침하세요.")
-        return "요약을 생성하지 못했습니다."
     except Exception as e:
-        st.error(f"❌ 요약 중 예외 발생: {e}")
+        st.error(f"❌ 요약 중 예외 발생: {type(e).__name__}: {e}")
         return "요약을 생성하지 못했습니다."
 
     upload_summary(summary_file, summary)

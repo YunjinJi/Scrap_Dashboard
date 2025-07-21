@@ -73,7 +73,7 @@ def upload_summary(name: str, text: str) -> None:
 @retry(reraise=True, stop=stop_after_attempt(5), wait=wait_exponential(min=1, max=10))
 def summarize_with_retry(prompt: str) -> str:
     st.write("DEBUG ▶ summarize_with_retry 호출")
-    resp = openai.ChatCompletion.create(
+    resp = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
         temperature=0.3
@@ -99,7 +99,7 @@ def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> s
     prompt    = f"다음 PDF를 5문장 이내로 요약해 주세요:\n\n{text[:2000]}"
     st.write("DEBUG ▶ 프롬프트:", prompt[:100], "...")
 
-    # 예외 터뜨려 전체 스택 트레이스 확인
+    # 실제 호출 및 예외 노출
     summary = summarize_with_retry(prompt)
 
     upload_summary(summary_filename, summary)
@@ -111,7 +111,7 @@ uploaded = st.sidebar.file_uploader("PDF 선택", type="pdf")
 if uploaded:
     data = uploaded.read()
     upload_pdf(uploaded.name, data)
-    st.sidebar.success("✅ 업로드 완료! 페이지를 새로고침하세요.")
+    st.sidebar.success("✅ 업로드 완료! 페이지를 새로침하세요.")
 
 # ─── 메인: PDF 목록 및 요약 표시 ─────────────────────────────────
 st.header("📑 저장된 PDF 및 요약")
@@ -123,7 +123,6 @@ if not pdfs:
 else:
     for pdf_name in sorted(pdfs):
         st.subheader(pdf_name)
-        # 에러가 나면 전체 스택트레이스가 나타나도록 예외를 잡지 않습니다.
         summary = get_or_create_summary(pdf_name, summaries)
         st.markdown(f"**요약:** {summary}")
         st.markdown("---")

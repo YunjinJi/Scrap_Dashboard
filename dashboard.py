@@ -4,7 +4,7 @@ import base64
 
 import streamlit as st
 import openai
-from openai.exceptions import RateLimitError
+from openai.error import RateLimitError
 from PyPDF2 import PdfReader
 from google.cloud import storage
 from tenacity import retry, stop_after_attempt, wait_exponential
@@ -26,12 +26,12 @@ bucket  = client.bucket(bucket_name)
 # ─── 유틸: PDF 목록 ─────────────────────────────────────────────
 def list_pdfs() -> list[str]:
     blobs = client.list_blobs(bucket, prefix="pdfs/")
-    return [blob.name.split("/",1)[1] for blob in blobs if blob.name.endswith(".pdf")]
+    return [blob.name.split("/", 1)[1] for blob in blobs if blob.name.endswith(".pdf")]
 
 # ─── 유틸: 요약 목록 ────────────────────────────────────────────
 def list_summaries() -> dict[str, storage.Blob]:
     blobs = client.list_blobs(bucket, prefix="summaries/")
-    return {blob.name.split("/",1)[1]: blob for blob in blobs if blob.name.endswith("_summary.txt")}
+    return {blob.name.split("/", 1)[1]: blob for blob in blobs if blob.name.endswith("_summary.txt")}
 
 # ─── 유틸: PDF 업로드 ────────────────────────────────────────────
 def upload_pdf(pdf_name: str, data: bytes) -> None:
@@ -52,7 +52,7 @@ def upload_summary(name: str, text: str) -> None:
 def summarize_with_retry(prompt: str) -> str:
     resp = openai.chat.completions.create(
         model="gpt-3.5-turbo",
-        messages=[{"role":"user","content":prompt}],
+        messages=[{"role": "user", "content": prompt}],
         temperature=0.3,
     )
     return resp.choices[0].message.content.strip()
@@ -60,8 +60,9 @@ def summarize_with_retry(prompt: str) -> str:
 # ─── 요약 생성/조회 ─────────────────────────────────────────────
 @st.cache_data(show_spinner=False, hash_funcs={dict: lambda _: None})
 def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> str:
-    summary_file = pdf_name.replace(".pdf","_summary.txt")
-    # 기존 오류 요약이면 재생성
+    summary_file = pdf_name.replace(".pdf", "_summary.txt")
+
+    # 기존에 생성된 요약이 오류 메시지가 아니면 그대로 반환
     if summary_file in existing:
         text = existing[summary_file].download_as_text()
         if not text.startswith("⚠️"):
@@ -81,7 +82,7 @@ def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> s
     try:
         summary = summarize_with_retry(prompt)
     except RateLimitError:
-        st.error("⚠️ OpenAI 속도 제한이 걸렸습니다. 잠시 후 새로고침하세요.")
+        st.error("⚠️ OpenAI 속도 제한에 걸렸습니다. 잠시 후 새로고침하세요.")
         return "요약을 생성하지 못했습니다."
     except Exception as e:
         st.error(f"❌ 요약 중 예외 발생: {e}")

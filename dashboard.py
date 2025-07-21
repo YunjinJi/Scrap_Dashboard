@@ -13,9 +13,9 @@ st.set_page_config(page_title="GCS PDF 요약", layout="wide")
 st.title("📂 GCS PDF 업로드 & 요약")
 
 # ─── 시크릿 로드 ───────────────────────────────────────────────
-openai.api_key  = st.secrets["OPENAI_API_KEY"]
-b64             = st.secrets["GCS_SA_KEY_B64"]
-bucket_name     = st.secrets["GCS_BUCKET_NAME"]
+openai.api_key = st.secrets["OPENAI_API_KEY"]
+b64            = st.secrets["GCS_SA_KEY_B64"]
+bucket_name    = st.secrets["GCS_BUCKET_NAME"]
 
 # ─── GCS 클라이언트 인증 ───────────────────────────────────────
 sa_info = json.loads(base64.b64decode(b64))
@@ -25,40 +25,46 @@ bucket  = client.bucket(bucket_name)
 # ─── 유틸 함수 ───────────────────────────────────────────────────
 
 def list_pdfs() -> list[str]:
+    """버킷의 pdfs/ 폴더 내 PDF 이름 목록을 리스트로 반환"""
     blobs = client.list_blobs(bucket, prefix="pdfs/")
-    return [
-        blob.name.split("/", 1)[1]
-        for blob in blobs
-        if blob.name.endswith(".pdf")
-    ]
+    pdf_names: list[str] = []
+    for blob in blobs:
+        name = blob.name
+        if name.endswith(".pdf"):
+            # 'pdfs/filename.pdf' 중 'filename.pdf' 추출
+            pdf_names.append(name.split("/", 1)[1])
+    return pdf_names
 
 def list_summaries() -> dict[str, storage.Blob]:
+    """버킷의 summaries/ 폴더 내 요약 텍스트 목록(name→Blob) 딕셔너리로 반환"""
     blobs = client.list_blobs(bucket, prefix="summaries/")
-    return {
-        blob.name.split("/", 1)[1]: blob
-        for blob in blobs
-        if blob.name.endswith("_summary.txt")
-    ]
+    summary_map: dict[str, storage.Blob] = {}
+    for blob in blobs:
+        name = blob.name
+        if name.endswith("_summary.txt"):
+            # 'summaries/filename_summary.txt' 중 'filename_summary.txt' 추출
+            key = name.split("/", 1)[1]
+            summary_map[key] = blob
+    return summary_map
 
 def upload_pdf(pdf_name: str, data_bytes: bytes) -> None:
+    """pdfs/ 폴더에 PDF 업로드"""
     blob = bucket.blob(f"pdfs/{pdf_name}")
     blob.upload_from_file(io.BytesIO(data_bytes), content_type="application/pdf")
 
 def download_pdf_bytes(path: str) -> bytes:
+    """지정된 경로의 객체를 바이너리로 다운로드"""
     blob = bucket.blob(path)
     return blob.download_as_bytes()
 
 def upload_summary(name: str, text: str) -> None:
+    """summaries/ 폴더에 요약 텍스트 업로드"""
     blob = bucket.blob(f"summaries/{name}")
     blob.upload_from_string(text, content_type="text/plain")
 
 # ─── OpenAI 호출 백오프 로직 ────────────────────────────────────
 
-@retry(
-    reraise=True,
-    stop=stop_after_attempt(5),
-    wait=wait_exponential(multiplier=1, min=1, max=10)
-)
+@retry(reraise=True, stop=stop_after_attempt(5), wait=wait_exponential(min=1, max=10))
 def summarize_with_retry(prompt: str) -> str:
     resp = openai.ChatCompletion.create(
         model="gpt-4o-mini",
@@ -72,11 +78,11 @@ def summarize_with_retry(prompt: str) -> str:
 def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> str:
     summary_filename = pdf_name.replace(".pdf", "_summary.txt")
 
-    # 이미 생성된 요약 있으면 다운로드
+    # 이미 생성된 요약이 있으면 다운로드
     if summary_filename in existing:
         return existing[summary_filename].download_as_text()
 
-    # PDF 다운로드 & 텍스트 추출
+    # 새로 생성할 경우: PDF 다운로드→텍스트 추출→요약→업로드
     pdf_bytes = download_pdf_bytes(f"pdfs/{pdf_name}")
     reader    = PdfReader(io.BytesIO(pdf_bytes))
     text      = "\n".join(page.extract_text() or "" for page in reader.pages)
@@ -88,7 +94,6 @@ def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> s
         st.error(f"❌ 요약 중 예외 발생: {type(e).__name__}: {e}")
         summary = "⚠️ 요약 요청 중 오류가 발생했습니다."
 
-    # 생성된 요약 업로드
     upload_summary(summary_filename, summary)
     return summary
 
@@ -102,14 +107,5 @@ if uploaded:
 
 # ─── 메인 화면: PDF 목록 및 요약 표시 ────────────────────────────
 st.header("📑 저장된 PDF 및 요약")
-pdfs      = list_pdfs()
-summaries = list_summaries()
-
-if not pdfs:
-    st.info("버킷의 pdfs/ 폴더에 PDF 파일을 업로드해 보세요.")
-else:
-    for pdf_name in sorted(pdfs):
-        st.subheader(pdf_name)
-        summary = get_or_create_summary(pdf_name, summaries)
-        st.markdown(f"**요약:** {summary}")
-        st.markdown("---")
+pdfs       =
+::contentReference[oaicite:0]{index=0}

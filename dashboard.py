@@ -1,12 +1,12 @@
 import io
 import json
 import base64
+
 import streamlit as st
 import openai
 from PyPDF2 import PdfReader
 from google.cloud import storage
 from tenacity import retry, stop_after_attempt, wait_exponential
-from openai.error import RateLimitError
 
 # ─── 페이지 설정 ────────────────────────────────────────────────
 st.set_page_config(page_title="GCS PDF 요약", layout="wide")
@@ -38,7 +38,7 @@ def list_summaries():
         blob.name.split("/", 1)[1]: blob
         for blob in client.list_blobs(bucket, prefix="summaries/")
         if blob.name.endswith("_summary.txt")
-    }
+    ]
 
 def upload_pdf(pdf_name: str, data_bytes: bytes):
     """pdfs/ 폴더에 PDF 업로드"""
@@ -78,15 +78,18 @@ def get_or_create_summary(pdf_name: str, existing: dict) -> str:
     # 이미 생성된 요약 있으면 다운로드
     if summary_name in existing:
         return existing[summary_name].download_as_text()
+
     # PDF 다운로드 및 텍스트 추출
     pdf_bytes = download_pdf_bytes(f"pdfs/{pdf_name}")
     reader    = PdfReader(io.BytesIO(pdf_bytes))
     text      = "\n".join(page.extract_text() or "" for page in reader.pages)
     prompt    = f"다음 PDF를 5문장 이내로 요약해 주세요:\n\n{text[:2000]}"
+
     try:
         summary = summarize_with_retry(prompt)
-    except RateLimitError:
-        summary = "⚠️ 요약 요청이 과부하 상태입니다. 잠시 후 다시 시도해주세요."
+    except Exception:
+        summary = "⚠️ 요약 요청이 과부하 상태이거나 실패했습니다. 잠시 후 다시 시도해주세요."
+
     # 요약 업로드
     upload_summary(summary_name, summary)
     return summary

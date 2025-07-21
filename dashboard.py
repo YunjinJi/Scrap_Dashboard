@@ -8,7 +8,7 @@ import openai
 
 # ————— 설정 —————
 st.set_page_config(page_title="PDF 요약 대시보드", layout="wide")
-openai.api_key = st.secrets["OPENAI_API_KEY"]  # Streamlit Cloud secrets에 API 키 저장
+openai.api_key = st.secrets["OPENAI_API_KEY = "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"]  # Streamlit Cloud secrets에 API 키 저장
 
 # ————— DB 초기화 —————
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))

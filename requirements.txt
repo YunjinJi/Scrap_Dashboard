@@ -1,4 +1,2 @@
-streamlit
-pandas
-matplotlib
-wordcloud
+PyPDF2
+openai

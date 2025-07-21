@@ -67,12 +67,12 @@ def summarize_with_retry(prompt: str) -> str:
     )
     return resp.choices[0].message.content.strip()
 
-# ─── 요약 생성/조회 ─────────────────────────────────────────────
-@st.cache_data(show_spinner=False, ignore_hash=["existing"])
+# ─── 요약 생성/조회 ────────────────────────────────────────────
+@st.cache_data(show_spinner=False, hash_funcs={dict: lambda _: None})
 def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> str:
     summary_filename = pdf_name.replace(".pdf", "_summary.txt")
 
-    # 이미 생성된 요약이 있으면 다운로드
+    # 이미 생성된 요약 있으면 다운로드
     if summary_filename in existing:
         return existing[summary_filename].download_as_text()
 

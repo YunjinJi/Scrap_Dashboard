@@ -17,7 +17,7 @@ openai.api_key = st.secrets["OPENAI_API_KEY"]
 sa_info   = json.loads(st.secrets["GDRIVE_SA_KEY"])
 folder_id = st.secrets["GDRIVE_FOLDER_ID"]
 creds     = Credentials.from_service_account_info(
-    sa_info, scopes=["https://www.googleapis.com/auth/drive"])
+    sa_info, scopes=["https://www.googleapis.com/auth/drive.file"])
 drive     = build("drive", "v3", credentials=creds)
 
 # ─── 헬퍼 함수 ────────────────────────────────────────────────────
@@ -79,8 +79,8 @@ def get_or_create_summary(pdf_meta, existing_summaries):
     resp = openai.chat.completions.create(
         model="gpt-4o-mini",
         messages=[{
-            "role":"user",
-            "content":f"다음 PDF를 5문장 이내로 요약해 주세요:\n\n{text[:2000]}"
+            "role": "user",
+            "content": f"다음 PDF를 5문장 이내로 요약해 주세요:\n\n{text[:2000]}"
         }],
         temperature=0.3
     )

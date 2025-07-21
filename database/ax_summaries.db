@@ -1,17 +1,40 @@
+import os
 import sqlite3
 
-conn = sqlite3.connect("ax_summaries.db")
-c = conn.cursor()
+# 1) DB 파일 경로 설정
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, "ax_summaries.db")
 
-c.execute("""CREATE TABLE IF NOT EXISTS summaries (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    date TEXT,
-    content TEXT
-)""")
+# 2) DB 초기화 함수
+def init_db(path):
+    # 연결 시 파일이 없으면 이 시점에 빈 .db 파일이 생성됩니다.
+    conn = sqlite3.connect(path)
+    c = conn.cursor()
+    
+    # A) PDF 원본 저장용 테이블
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS pdfs (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            filename TEXT NOT NULL,
+            content BLOB NOT NULL,
+            upload_at TEXT NOT NULL
+        )
+    """)
+    
+    # B) 요약 결과 저장용 테이블
+    c.execute("""
+        CREATE TABLE IF NOT EXISTS summaries (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            pdf_id INTEGER NOT NULL,
+            summary TEXT NOT NULL,
+            summarized_at TEXT NOT NULL,
+            FOREIGN KEY(pdf_id) REFERENCES pdfs(id)
+        )
+    """)
+    
+    # 변경사항 커밋 후 종료
+    conn.commit()
+    conn.close()
 
-# 샘플 데이터 삽입
-c.execute("INSERT INTO summaries (date, content) VALUES (?, ?)", 
-          ("2025-07-11", "정부는 RE100 산업단지를 통해 AI 데이터센터를 유치하는 정책을 추진 중임."))
-
-conn.commit()
-conn.close()
+# 앱 시작 시 한 번만 호출
+init_db(DB_PATH)

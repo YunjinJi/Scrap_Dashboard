@@ -38,7 +38,7 @@ def list_summaries() -> dict[str, storage.Blob]:
         blob.name.split("/", 1)[1]: blob
         for blob in blobs
         if blob.name.endswith("_summary.txt")
-    }
+    ]
 
 def upload_pdf(pdf_name: str, data_bytes: bytes) -> None:
     blob = bucket.blob(f"pdfs/{pdf_name}")
@@ -63,7 +63,7 @@ def summarize_with_retry(prompt: str) -> str:
     resp = openai.ChatCompletion.create(
         model="gpt-4o-mini",
         messages=[{"role": "user", "content": prompt}],
-        temperature=0.3,
+        temperature=0.3
     )
     return resp.choices[0].message.content.strip()
 
@@ -79,7 +79,7 @@ def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> s
     # PDF 다운로드 & 텍스트 추출
     pdf_bytes = download_pdf_bytes(f"pdfs/{pdf_name}")
     reader    = PdfReader(io.BytesIO(pdf_bytes))
-    text      = "\n".join(p.extract_text() or "" for p in reader.pages)
+    text      = "\n".join(page.extract_text() or "" for page in reader.pages)
     prompt    = f"다음 PDF를 5문장 이내로 요약해 주세요:\n\n{text[:2000]}"
 
     try:

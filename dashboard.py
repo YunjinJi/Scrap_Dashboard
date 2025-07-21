@@ -25,7 +25,6 @@ bucket  = client.bucket(bucket_name)
 # ─── 유틸 함수 ───────────────────────────────────────────────────
 
 def list_pdfs() -> list[str]:
-    """버킷의 pdfs/ 폴더 내 PDF 이름 목록 반환"""
     blobs = client.list_blobs(bucket, prefix="pdfs/")
     return [
         blob.name.split("/", 1)[1]
@@ -34,7 +33,6 @@ def list_pdfs() -> list[str]:
     ]
 
 def list_summaries() -> dict[str, storage.Blob]:
-    """버킷의 summaries/ 폴더 내 요약 텍스트 목록(name→Blob) 반환"""
     blobs = client.list_blobs(bucket, prefix="summaries/")
     return {
         blob.name.split("/", 1)[1]: blob
@@ -43,17 +41,14 @@ def list_summaries() -> dict[str, storage.Blob]:
     }
 
 def upload_pdf(pdf_name: str, data_bytes: bytes) -> None:
-    """pdfs/ 폴더에 PDF 업로드"""
     blob = bucket.blob(f"pdfs/{pdf_name}")
     blob.upload_from_file(io.BytesIO(data_bytes), content_type="application/pdf")
 
 def download_pdf_bytes(path: str) -> bytes:
-    """지정된 경로의 객체를 바이너리로 다운로드"""
     blob = bucket.blob(path)
     return blob.download_as_bytes()
 
 def upload_summary(name: str, text: str) -> None:
-    """summaries/ 폴더에 요약 텍스트 업로드"""
     blob = bucket.blob(f"summaries/{name}")
     blob.upload_from_string(text, content_type="text/plain")
 
@@ -73,14 +68,13 @@ def summarize_with_retry(prompt: str) -> str:
     return resp.choices[0].message.content.strip()
 
 # ─── 요약 생성/조회 ─────────────────────────────────────────────
-
-@st.cache_data(show_spinner=False)
-def get_or_create_summary(pdf_name: str, _existing: dict[str, storage.Blob]) -> str:
+@st.cache_data(show_spinner=False, ignore_hash=["existing"])
+def get_or_create_summary(pdf_name: str, existing: dict[str, storage.Blob]) -> str:
     summary_filename = pdf_name.replace(".pdf", "_summary.txt")
 
     # 이미 생성된 요약이 있으면 다운로드
-    if summary_filename in _existing:
-        return _existing[summary_filename].download_as_text()
+    if summary_filename in existing:
+        return existing[summary_filename].download_as_text()
 
     # PDF 다운로드 & 텍스트 추출
     pdf_bytes = download_pdf_bytes(f"pdfs/{pdf_name}")
@@ -98,7 +92,6 @@ def get_or_create_summary(pdf_name: str, _existing: dict[str, storage.Blob]) -> 
     return summary
 
 # ─── 사이드바: PDF 업로드 ───────────────────────────────────────
-
 st.sidebar.header("📤 PDF 업로드")
 uploaded = st.sidebar.file_uploader("PDF 선택", type="pdf")
 if uploaded:
@@ -107,10 +100,9 @@ if uploaded:
     st.sidebar.success("✅ 업로드 완료! 페이지를 새로고침하세요.")
 
 # ─── 메인 화면: PDF 목록 및 요약 표시 ────────────────────────────
-
 st.header("📑 저장된 PDF 및 요약")
-pdfs       = list_pdfs()
-summaries  = list_summaries()
+pdfs      = list_pdfs()
+summaries = list_summaries()
 
 if not pdfs:
     st.info("버킷의 pdfs/ 폴더에 PDF 파일을 업로드해 보세요.")

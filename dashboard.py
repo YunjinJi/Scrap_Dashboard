@@ -53,7 +53,7 @@ def download_pdf(name: str) -> bytes:
 # 3. Gemini 설정
 # ─────────────────────────────────────────
 genai.configure(api_key=gemini_key)
-MODEL_ID = "gemini-2.0-flash@001"
+MODEL_ID = "gemini-2.0-flash-001"
 model    = genai.GenerativeModel(MODEL_ID)
 
 @retry(reraise=True, stop=stop_after_attempt(4), wait=wait_exponential(min=1, max=6))

@@ -3,4 +3,5 @@ openai
 PyPDF2
 google-cloud-storage
 sumy
+google-cloud-aiplatform
 

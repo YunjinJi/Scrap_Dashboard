@@ -100,13 +100,23 @@ def render_page_png(pdf_bytes: bytes, page_index: int, dpi: int = 150) -> bytes:
         pix  = page.get_pixmap(dpi=dpi)
         return pix.tobytes("png")
 
+# ---------------- 매체명 추정 ----------------
+media_pat = re.compile(r"^(?:\s*)([^\n]{2,30}(?:신문|일보|경제|뉴스))", re.MULTILINE)
+
+def guess_media_name(text: str) -> str:
+    head = text[:300]
+    m = media_pat.search(head)
+    return m.group(1) if m else "미상(매체명 확인 필요)"
+
+# ---------------- 페이지 요약 ----------------
 def summarize_pages(pdf_bytes: bytes) -> List[Tuple[int, str, str]]:
     """
-    return: [(page_no, preview_text_or_note, summary_text)]
+    return: [(page_no, page_text(원문), summary_text)]
+    summary_text는 '-' 3줄 bullet을 기대
     """
-    # 1차: PyPDF2
+    # 1차 텍스트 추출
     pages = extract_pages_pypdf2(pdf_bytes)
-    # 2차: 전부 빈 수준이면 PyMuPDF
+    # 전부 빈 수준이면 PyMuPDF
     if all(len(p) < 50 for p in pages):
         pages = extract_pages_pymupdf(pdf_bytes)
 
@@ -116,8 +126,8 @@ def summarize_pages(pdf_bytes: bytes) -> List[Tuple[int, str, str]]:
             clipped = page_text[:2000]
             prompt = (
                 f"다음은 PDF {idx}페이지 기사(들)입니다.\n"
-                f"각 기사(문단)별로 핵심만 뽑아 **3줄**로 요약해 주세요.\n"
-                f"- 각 줄은 반드시 '-' 로 시작하는 bullet 형식\n"
+                f"각 기사(문단)별 핵심만 뽑아 **딱 3줄**로 요약해 주세요.\n"
+                f"- 각 줄은 반드시 '-' 로 시작\n"
                 f"- 수치, 기관/회사명, 정책명 등은 그대로 남기기\n\n"
                 f"{clipped}"
             )
@@ -125,39 +135,43 @@ def summarize_pages(pdf_bytes: bytes) -> List[Tuple[int, str, str]]:
                 summary = gemini_text(prompt)
             except Exception as e:
                 summary = f"요약 실패(텍스트): {e}"
-            preview = page_text[:400].replace("\n", " ")
-            results.append((idx, preview, summary))
+            results.append((idx, page_text, summary))
         else:
             # 텍스트 추출 실패 → 이미지 멀티모달
             try:
                 img_bytes = render_page_png(pdf_bytes, idx - 1)
                 prompt = (
                     f"아래는 PDF {idx}페이지 이미지입니다.\n"
-                    f"이미지 안의 기사(문단)별 핵심을 **각각 3줄**씩 '-' bullet로 요약해 주세요.\n"
+                    f"이미지 안 기사들을 **딱 3줄**로 '-' bullet 요약해 주세요.\n"
                     f"- 수치/기관명 유지\n"
                 )
                 summary = gemini_image(prompt, img_bytes)
-                preview = "(텍스트 추출 실패 → 이미지로 요약)"
             except Exception as e:
                 summary = f"텍스트/이미지 추출 모두 실패: {e}"
-                preview = "(추출 실패)"
-            results.append((idx, preview, summary))
+            results.append((idx, "(이미지요약)", summary))
     return results
 
 # =========================================================
-# 5. 요약 결과 → 표(DataFrame) 변환
+# 5. 표 변환 함수 (매체명+3줄 요약을 한 칸에)
 # =========================================================
-def to_table(items):
+def to_table(items: List[Tuple[int, str, str]]) -> pd.DataFrame:
     """
-    items: [(page_no, preview, summary_text), ...]
-    -> DataFrame: page, preview, summary 한 칸씩
+    items: [(page_no, page_text, summary_text), ...]
+    -> DataFrame: page, 요약(매체+3줄)
     """
     rows = []
-    for page_no, preview, summary in items:
+    bullet_pat = re.compile(r"^-+\s*(.*)", flags=re.MULTILINE)
+
+    for page_no, page_text, summary in items:
+        media = guess_media_name(page_text)
+
+        bullets = bullet_pat.findall(summary)
+        bullets += [""] * (3 - len(bullets))  # 3줄 보장
+        cell = f"{media}\n{bullets[0]}\n{bullets[1]}\n{bullets[2]}"
+
         rows.append({
             "page": page_no,
-            "preview(첫400자)": preview[:400],
-            "summary": summary,    # 한 칸에 통짜 요약
+            "요약(매체+3줄)": cell,
         })
     return pd.DataFrame(rows)
 
@@ -171,9 +185,9 @@ if uploaded:
     st.sidebar.success(f"✅ GCS에 저장됨: {uploaded.name}")
 
 # =========================================================
-# 7. UI: 목록 & 페이지별 요약 + 표
+# 7. UI: 목록 & 표 출력
 # =========================================================
-st.header("📑 저장된 PDF → 페이지별 3줄 요약")
+st.header("📑 저장된 PDF → 페이지별 3줄 요약 표")
 pdfs = list_pdfs()
 
 if not pdfs:
@@ -189,7 +203,6 @@ else:
             if not items:
                 st.warning("추출된 내용이 없습니다.")
             else:
-                # 표로 표시
                 df = to_table(items)
                 st.dataframe(df, use_container_width=True)
 
@@ -201,11 +214,3 @@ else:
                     file_name=f"{name}_summary.csv",
                     mime="text/csv"
                 )
-
-                # (옵션) 개별 페이지 상세
-                for page_no, preview, summ in items:
-                    with st.expander(f"📄 {page_no} 페이지 미리보기"):
-                        st.text(preview)
-                    st.markdown("**📝 3줄 요약 결과 (원문)**")
-                    st.text_area(f"p{page_no} 요약", summ, height=180)
-                    st.markdown("---")

@@ -28,7 +28,7 @@ vert_creds = service_account.Credentials.from_service_account_info(vert_info)
 prediction_client = aiplatform_v1.PredictionServiceClient(credentials=vert_creds)
 project_id = vert_info["project_id"]
 location   = "us-central1"
-MODEL_ID   = "gemini-2.0-flash@001"
+MODEL_ID   = "gemini-2.0-flash-001"
 endpoint   = f"projects/{project_id}/locations/{location}/publishers/google/models/{MODEL_ID}"
 
 # ─── 3) PDF 목록 함수 & 업로드 UI ─────────────────────────────

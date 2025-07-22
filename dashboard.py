@@ -147,24 +147,17 @@ def summarize_pages(pdf_bytes: bytes) -> List[Tuple[int, str, str]]:
 # =========================================================
 # 5. 요약 결과 → 표(DataFrame) 변환
 # =========================================================
-def to_table(items: List[Tuple[int, str, str]]) -> pd.DataFrame:
+def to_table(items):
     """
     items: [(page_no, preview, summary_text), ...]
-    summary_text가 '- '로 시작하는 bullet 들이라고 가정하고 3줄만 뽑는다.
+    -> DataFrame: page, preview, summary 한 칸씩
     """
     rows = []
-    bullet_pat = re.compile(r"^-+\s*(.*)", flags=re.MULTILINE)
-
     for page_no, preview, summary in items:
-        bullets = bullet_pat.findall(summary)
-        bullets += [""] * (3 - len(bullets))  # 최소 3개 채우기
         rows.append({
             "page": page_no,
             "preview(첫400자)": preview[:400],
-            "line1": bullets[0] if len(bullets) > 0 else "",
-            "line2": bullets[1] if len(bullets) > 1 else "",
-            "line3": bullets[2] if len(bullets) > 2 else "",
-            "raw_summary": summary,
+            "summary": summary,    # 한 칸에 통짜 요약
         })
     return pd.DataFrame(rows)
 

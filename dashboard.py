@@ -96,11 +96,23 @@ pdf_list = list_pdfs()
 if not pdf_list:
     st.info("pdfs/ 경로에 PDF가 없습니다. 사이드바에서 업로드하세요.")
 else:
+    # 세션 상태 초기화
+    if "summaries" not in st.session_state:
+        st.session_state["summaries"] = {}
+
     for pdf_name in sorted(pdf_list):
         st.subheader(pdf_name)
-        if st.button(f"요약 보기: {pdf_name}", key=pdf_name):
+
+        # 버튼 클릭 시 요약 생성하여 세션에 저장
+        if st.button(f"요약 보기: {pdf_name}", key=f"btn_{pdf_name}"):
             data = download_pdf(pdf_name)
-            summary = summarize_pdf(data)
+            with st.spinner("요약 생성 중..."):
+                summary = summarize_pdf(data)
+            st.session_state["summaries"][pdf_name] = summary
+
+        # 세션에 저장된 요약이 있으면 항상 표시
+        if pdf_name in st.session_state["summaries"]:
             st.write("**요약:**")
-            st.write(summary)
+            st.write(st.session_state["summaries"][pdf_name])
+
         st.markdown("---")

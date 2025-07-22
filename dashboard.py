@@ -24,15 +24,15 @@ gcs_creds   = service_account.Credentials.from_service_account_info(gcs_info)
 gcs_client  = storage.Client(credentials=gcs_creds, project=gcs_info["project_id"])
 bucket      = gcs_client.bucket(bucket_name)
 
-# 2) Generative AI 서비스 계정 JSON(Base64)
+# 2) Generative AI (Gemini) 서비스 계정 JSON(Base64) 로드
 genai_b64   = st.secrets["GENAI_SA_KEY_B64"]
 genai_info  = json.loads(base64.b64decode(genai_b64))
 genai_creds = service_account.Credentials.from_service_account_info(genai_info)
 
-# 3) SDK 구성
+# 3) SDK 구성 (api_key_from → credentials 로 변경)
 genai.configure(
     api_key=None,
-    api_key_from=genai_creds,
+    credentials=genai_creds,
 )
 
 MODEL_ID = "text-bison@001"

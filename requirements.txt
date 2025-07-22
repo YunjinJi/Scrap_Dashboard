@@ -6,3 +6,4 @@ sumy
 google-cloud-aiplatform
 tenacity
 vertexai
+google-generativeai

@@ -41,7 +41,7 @@ bucket     = gcs_client.bucket(bucket_name)
 # Gemini 설정
 # ─────────────────────────────────────────────────────────────
 genai.configure(api_key=gemini_key)
-MODEL_ID = "gemini-2.0-flash@001"
+MODEL_ID = "gemini-2.0-flash-001"
 model    = genai.GenerativeModel(MODEL_ID)
 
 # ─────────────────────────────────────────────────────────────

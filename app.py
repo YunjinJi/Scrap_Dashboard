@@ -39,7 +39,7 @@ def download_pdf_from_gcs(name: str) -> bytes:
 
 # ─── 추출적 요약 함수 ───────────────────────────────────────
 def extractive_summary(text: str, num_sentences: int) -> str:
-    parser     = PlaintextParser.from_string(text, Tokenizer("korean"))
+    parser     = PlaintextParser.from_string(text, Tokenizer("english"))
     summarizer = LexRankSummarizer()
     sents      = summarizer(parser.document, num_sentences)
     return "\n".join(str(s).strip() for s in sents)

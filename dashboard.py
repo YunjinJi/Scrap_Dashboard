@@ -31,7 +31,7 @@ text_client = TextGenerationClient(credentials=genai_creds)
 MODEL_NAME = (
     f"projects/{genai_info['project_id']}/"
     f"locations/us-central1/"
-    f"publishers/google/models/gemini-2.0-flash-001"
+    f"publishers/google/models/gemini-2.0-flash@001"
 )
 
 # ─── 3) PDF → 텍스트 추출 & 요약 함수 ────────────────────────

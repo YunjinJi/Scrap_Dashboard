@@ -50,7 +50,7 @@ def download_pdf(name: str) -> bytes:
     return bucket.blob(f"pdfs/{name}").download_as_bytes()
 
 # ----------------- Gemini 요약 함수 -----------------
-@retry(reraise=True, stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=15))
+@retry(reraise=True, stop=stop_after_attempt(5), wait=wait_exponential(min=1, max=15))
 def summarize_with_bison(text: str) -> str:
     response = prediction_client.predict(
         endpoint=endpoint,

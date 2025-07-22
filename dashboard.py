@@ -52,13 +52,11 @@ def download_pdf(name: str) -> bytes:
 # ----------------- Gemini 요약 함수 -----------------
 @retry(reraise=True, stop=stop_after_attempt(5), wait=wait_exponential(multiplier=1, min=1, max=15))
 def summarize_with_bison(text: str) -> str:
-    # Vertex AI Prediction 호출
     response = prediction_client.predict(
         endpoint=endpoint,
         instances=[{"content": text}],
         parameters={"temperature": 0.3, "maxOutputTokens": 256},
     )
-    # response.predictions[0] 구조: {"content": "..."}
     return response.predictions[0].get("content", "").strip()
 
 # ----------------- PDF 텍스트 → 요약 -----------------

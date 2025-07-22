@@ -6,4 +6,4 @@ sumy
 google-cloud-aiplatform
 tenacity
 vertexai
-google-ai-generative>=0.3.0
++google-generativeai>=0.7.0

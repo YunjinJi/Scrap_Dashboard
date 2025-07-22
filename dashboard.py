@@ -9,7 +9,7 @@ from google.oauth2 import service_account
 from tenacity import retry, stop_after_attempt, wait_exponential
 
 # ─── 페이지 설정 ────────────────────────────────────────────
-st.set_page_config(page_title="PDF → text‑bison@001 요약", layout="wide")
+st.set_page_config(page_title="PDF → text‑bison-001 요약", layout="wide")
 st.title("📄 PDF 업로드 & text‑bison@001 요약 (3줄)")
 
 # ─── 시크릿 로드 & GCS 인증 ─────────────────────────────────

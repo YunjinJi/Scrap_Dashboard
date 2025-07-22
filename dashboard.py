@@ -31,7 +31,7 @@ vertex_credentials = service_account.Credentials.from_service_account_info(verte
 prediction_client  = aiplatform_v1.PredictionServiceClient(credentials=vertex_credentials)
 project_id         = vertex_info["project_id"]
 location           = "us-central1"  # 모델 리전
-model_name         = "gemini-1.5-flash"
+model_name         = "chat-bison@001"
 endpoint           = f"projects/{project_id}/locations/{location}/publishers/google/models/{model_name}"
 
 # ----------------- GCS 유틸 함수 -----------------

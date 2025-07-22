@@ -29,7 +29,7 @@ vert_creds = service_account.Credentials.from_service_account_info(vert_info)
 prediction_client = aiplatform_v1.PredictionServiceClient(credentials=vert_creds)
 project_id = vert_info["project_id"]
 location   = "us-central1"
-model_id   = "text-bison@001"
+model_id   = "text-bison-001"
 endpoint   = f"projects/{project_id}/locations/{location}/publishers/google/models/{model_id}"
 
 # ─── GCS 유틸 함수 ────────────────────────────────────────────
